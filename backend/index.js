@@ -8,13 +8,18 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// Routes
+// ✅ Root route for basic GET
+app.get('/', (req, res) => {
+  res.send('Nestlé AI Chatbot backend is running!');
+});
+
+// POST route to handle chat messages
 app.post('/api/message', (req, res) => {
   const { message } = req.body;
 
   console.log('User asked:', message);
 
-  // TODO: Later replace this with AI or scraped content
+  // TODO: Replace with AI or scraped content
   const response = `You said: "${message}". I will connect this to Nestlé content soon!`;
 
   res.json({ reply: response });
