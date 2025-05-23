@@ -4,6 +4,8 @@ import './App.css';
 const BOT_NAME = 'NestleBot';
 const BOT_ICON = '🤖';
 
+// Load backend URL from environment variable
+const API_URL = process.env.REACT_APP_API_URL;
 
 function App() {
   const [isOpen, setIsOpen] = useState(false);
@@ -16,23 +18,34 @@ function App() {
 
   const sendMessage = () => {
     if (!input.trim()) return;
-    setMessages([...messages, { sender: 'user', text: input }]);
+
+    setMessages(prev => [...prev, { sender: 'user', text: input }]);
+    const userMessage = input;
     setInput('');
 
-    // Call backend API
-    fetch('http://localhost:5000/api/message', {
+    if (!API_URL) {
+      setMessages(prev => [...prev, {
+        sender: 'bot',
+        text: 'Backend URL is not configured. Please check REACT_APP_API_URL in your .env file.',
+      }]);
+      return;
+    }
+
+    fetch(`${API_URL}/api/message`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: input }),
+      body: JSON.stringify({ message: userMessage }),
     })
-    .then(res => res.json())
-    .then(data => {
-      setMessages(prev => [...prev, { sender: 'bot', text: data.reply }]);
-    })
-    .catch(err => {
-      setMessages(prev => [...prev, { sender: 'bot', text: 'Error connecting to backend.' }]);
-    });
-
+      .then(res => res.json())
+      .then(data => {
+        setMessages(prev => [...prev, { sender: 'bot', text: data.reply }]);
+      })
+      .catch(() => {
+        setMessages(prev => [...prev, {
+          sender: 'bot',
+          text: 'Error connecting to backend.',
+        }]);
+      });
   };
 
   return (
