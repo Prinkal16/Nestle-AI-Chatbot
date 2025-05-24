@@ -1,0 +1,1 @@
+Updated the backend API url by creating variable in frontend.
