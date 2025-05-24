@@ -5,7 +5,7 @@ const BOT_NAME = 'NestleBot';
 const BOT_ICON = '🤖';
 
 // Load backend URL from environment variable
-const API_URL = process.env.REACT_APP_API_URL;
+const API_URL = "https://nestle-ai-chatbot-backend-dncveraeftgqbqbp.canadacentral-01.azurewebsites.net/";
 
 function App() {
   const [isOpen, setIsOpen] = useState(false);
