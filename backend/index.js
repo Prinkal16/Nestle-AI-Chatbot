@@ -10,7 +10,7 @@ app.use(express.json());
 
 // ✅ Root route for basic GET
 app.get('/', (req, res) => {
-  res.send('Nestlé AI Chatbot backend is running!');
+  res.send('Nestlé AI Chatbot backend is running!!!');
 });
 
 // POST route to handle chat messages
