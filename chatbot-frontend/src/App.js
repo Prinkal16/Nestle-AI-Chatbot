@@ -4,8 +4,7 @@ import './App.css';
 const BOT_NAME = 'NestleBot';
 const BOT_ICON = '🤖';
 
-// Load backend URL from environment variable
-const API_URL = "https://nestle-ai-chatbot-backend-dncveraeftgqbqbp.canadacentral-01.azurewebsites.net/";
+const API_URL = "https://nestle-ai-chatbot-backend-dncveraeftgqbqbp.canadacentral-01.azurewebsites.net";
 
 function App() {
   const [isOpen, setIsOpen] = useState(false);
@@ -38,12 +37,33 @@ function App() {
     })
       .then(res => res.json())
       .then(data => {
-        setMessages(prev => [...prev, { sender: 'bot', text: data.reply }]);
+        const newMessages = [{ sender: 'bot', text: data.reply }];
+
+        // Add Graph context if available
+        if (data.graphContext) {
+          newMessages.push({
+            sender: 'bot',
+            text: `📘 Related info from graph: ${data.graphContext}`,
+          });
+        }
+
+        // Add source documents if available
+        if (Array.isArray(data.sourceDocs) && data.sourceDocs.length > 0) {
+          data.sourceDocs.forEach((doc, idx) => {
+            newMessages.push({
+              sender: 'bot',
+              text: `🔗 Source ${idx + 1}: ${doc.metadata?.source || 'Unknown source'}`,
+            });
+          });
+        }
+
+        setMessages(prev => [...prev, ...newMessages]);
       })
-      .catch(() => {
+      .catch((error) => {
+        console.error('Error:', error);
         setMessages(prev => [...prev, {
           sender: 'bot',
-          text: 'Error connecting to backend.',
+          text: '⚠️ Error connecting to backend.',
         }]);
       });
   };
@@ -83,7 +103,7 @@ function App() {
             bottom: 90,
             right: 20,
             width: 350,
-            height: 450,
+            height: 500,
             backgroundColor: 'white',
             boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
             borderRadius: 10,
