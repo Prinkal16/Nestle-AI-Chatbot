@@ -1,95 +1,115 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-require('dotenv').config();
-const { OpenAIClient, AzureKeyCredential } = require('@azure/openai');
-const gremlin = require('gremlin');
+// Corrected import: OpenAIClient from @azure/openai
+const { OpenAIClient } = require('@azure/openai');
+// Import AzureKeyCredential from @azure/core-auth
+const { AzureKeyCredential } = require('@azure/core-auth');
+const { driver, auth } = require('gremlin');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const port = process.env.PORT || 3000;
 
-// Middlewares
 app.use(cors());
 app.use(express.json());
 
-/* ========== Cosmos DB Gremlin Setup ========== */
-const authenticator = new gremlin.driver.auth.PlainTextSaslAuthenticator(
-  `/dbs/${process.env.COSMOSDB_DATABASE}/colls/${process.env.COSMOSDB_GRAPH}`,
-  process.env.COSMOSDB_KEY
-);
+// Azure OpenAI Setup
+const openaiEndpoint = process.env.AZURE_OPENAI_ENDPOINT;
+const openaiKey = process.env.AZURE_OPENAI_API_KEY;
+const openaiDeployment = process.env.AZURE_OPENAI_DEPLOYMENT;
 
-const client = new gremlin.driver.Client(
-  process.env.COSMOSDB_ENDPOINT,
-  {
-    authenticator,
-    traversalsource: 'g',
-    rejectUnauthorized: true,
-    mimeType: 'application/vnd.gremlin-v2.0+json',
-  }
-);
+// Ensure all environment variables are loaded
+if (!openaiEndpoint || !openaiKey || !openaiDeployment) {
+  console.error("Missing Azure OpenAI environment variables. Please check your .env file.");
+  process.exit(1); // Exit if critical variables are missing
+}
 
-const g = client.traversal().withRemote();
+// Instantiate OpenAIClient
+const openaiClient = new OpenAIClient(openaiEndpoint, new AzureKeyCredential(openaiKey));
 
-/* ========== Azure OpenAI Setup ========== */
-const openai = new OpenAIClient(
-  process.env.AZURE_OPENAI_ENDPOINT,
-  new AzureKeyCredential(process.env.AZURE_OPENAI_KEY)
-);
-const DEPLOYMENT_NAME = process.env.AZURE_OPENAI_DEPLOYMENT;
+// Cosmos DB (Gremlin) Setup
+const gremlinUsername = `/dbs/${process.env.COSMOSDB_DATABASE}/colls/${process.env.COSMOSDB_GRAPH}`;
+const gremlinPassword = process.env.COSMOSDB_KEY;
+const gremlinEndpoint = process.env.COSMOSDB_ENDPOINT;
 
-/* ========== ROUTES ========== */
+// Ensure all environment variables for Gremlin are loaded
+if (!process.env.COSMOSDB_DATABASE || !process.env.COSMOSDB_GRAPH || !gremlinPassword || !gremlinEndpoint) {
+  console.error("Missing Cosmos DB (Gremlin) environment variables. Please check your .env file.");
+  process.exit(1); // Exit if critical variables are missing
+}
 
-// Root test
-app.get('/', (req, res) => {
-  res.send('Nestlé AI Chatbot backend is running!');
+const authenticator = new auth.PlainTextSaslAuthenticator(gremlinUsername, gremlinPassword);
+
+const gremlinClient = new driver.Client(`${gremlinEndpoint}`, {
+  authenticator,
+  traversalsource: 'g',
+  // Set to false for development if you are encountering SSL issues
+  // For production, ensure proper certificate handling or trusted CAs
+  rejectUnauthorized: false,
+  mimeType: 'application/vnd.gremlin-v2.0+json'
 });
 
-// POST: Add graph node to Cosmos DB
-app.post('/api/add-node', async (req, res) => {
-  const { id, label, text } = req.body;
+// Connect to Gremlin server
+gremlinClient.open()
+  .then(() => console.log('Successfully connected to Cosmos DB Gremlin API'))
+  .catch((err) => {
+    console.error('Error connecting to Cosmos DB Gremlin API:', err.message);
+    // Add more detailed error info if available, e.g., err.stack
+    console.error('Ensure COSMOS_DB_HOST, COSMOS_DB_NAME, COSMOS_DB_GRAPH, and COSMOS_DB_KEY are correct.');
+  });
 
-  try {
-    await g.addV(label)
-      .property('id', id)
-      .property('text', text)
-      .next();
 
-    res.json({ message: 'Node added.' });
-  } catch (err) {
-    console.error('Error adding node:', err);
-    res.status(500).json({ error: 'Error adding node.' });
+// Sample endpoint
+app.post('/chat', async (req, res) => {
+  const { message, context } = req.body;
+
+  if (!message) {
+    return res.status(400).json({ error: 'Message is required' });
   }
-});
-
-// POST: Handle chat message
-app.post('/api/message', async (req, res) => {
-  const { message } = req.body;
-  console.log('User asked:', message);
 
   try {
-    // Step 1: Gremlin query to get related context
-    console.log('Searching for message context:', message);
-    const contextResult = await g.V()
-      .has('text', gremlin.process.P.within([message]))
-      .values('text')
-      .toList();
+    // Construct messages array for chat completions
+    const messages = [
+      { role: 'system', content: 'You are a helpful AI assistant. Use the provided context to answer user queries concisely and accurately. If the answer is not in the context, state that you cannot answer based on the provided information.' },
+      { role: 'user', content: `${message}` }
+    ];
 
-    const context = contextResult.join('\n');
+    // If context is provided, add it to the messages
+    if (context) {
+      // Placing context after the system message, before the user message
+      messages.splice(1, 0, { role: 'system', content: `Context: ${context}` });
+    }
 
-    // Step 2: Call Azure OpenAI with context
-    const completion = await openai.getChatCompletions(DEPLOYMENT_NAME, [
-      { role: "system", content: "Use the following context to answer user queries." },
-      { role: "user", content: `${message}\n\nContext:\n${context}` }
-    ]);
+    const result = await openaiClient.getChatCompletions(openaiDeployment, messages, {
+      temperature: 0.7, // Adjust temperature for creativity (0.0-1.0)
+      maxTokens: 800,   // Limit response length
+    });
 
-    const reply = completion.choices[0].message.content;
+    const reply = result.choices[0].message.content;
     res.json({ reply });
   } catch (error) {
-    console.error('Error processing message:', error);
-    res.status(500).json({ reply: 'Error processing message. Please try again later.' });
+    console.error('Error in /chat:', error.message);
+    // Provide more specific error messages if possible
+    if (error.statusCode) {
+      res.status(error.statusCode).json({ error: `Azure OpenAI API Error: ${error.message}` });
+    } else {
+      res.status(500).json({ error: 'Something went wrong with the AI service.' });
+    }
   }
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+app.listen(port, () => {
+  console.log(`Server running on http://localhost:${port}`);
+});
+
+// Graceful shutdown
+process.on('SIGINT', () => {
+  console.log('Closing Gremlin client connection...');
+  gremlinClient.close()
+    .then(() => console.log('Gremlin client connection closed.'))
+    .catch((err) => console.error('Error closing Gremlin client connection:', err))
+    .finally(() => {
+      console.log('Server shutting down.');
+      process.exit(0);
+    });
 });
