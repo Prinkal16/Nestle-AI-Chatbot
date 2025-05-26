@@ -18,18 +18,15 @@ function App() {
   const sendMessage = () => {
     if (!input.trim()) return;
 
-    setMessages(prev => [...prev, { sender: 'user', text: input }]);
     const userMessage = input;
     setInput('');
+    setMessages(prev => [
+      ...prev,
+      { sender: 'user', text: userMessage },
+      { sender: 'bot', text: 'Typing...' },
+    ]);
 
-    if (!API_URL) {
-      setMessages(prev => [...prev, {
-        sender: 'bot',
-        text: 'Backend URL is not configured. Please check REACT_APP_API_URL in your .env file.',
-      }]);
-      return;
-    }
-
+    console.log('Sending to:', `${API_URL}/api/message`);
     fetch(`${API_URL}/api/message`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -37,34 +34,40 @@ function App() {
     })
       .then(res => res.json())
       .then(data => {
-        const newMessages = [{ sender: 'bot', text: data.reply }];
+        setMessages(prev => {
+          const msgs = [...prev];
+          msgs.pop(); // remove 'Typing...'
 
-        // Add Graph context if available
-        if (data.graphContext) {
-          newMessages.push({
-            sender: 'bot',
-            text: `📘 Related info from graph: ${data.graphContext}`,
-          });
-        }
+          const newMsgs = [{ sender: 'bot', text: data.reply }];
 
-        // Add source documents if available
-        if (Array.isArray(data.sourceDocs) && data.sourceDocs.length > 0) {
-          data.sourceDocs.forEach((doc, idx) => {
-            newMessages.push({
+          if (data.graphContext) {
+            newMsgs.push({
               sender: 'bot',
-              text: `🔗 Source ${idx + 1}: ${doc.metadata?.source || 'Unknown source'}`,
+              text: `📘 Related info from graph: ${data.graphContext}`,
             });
-          });
-        }
+          }
 
-        setMessages(prev => [...prev, ...newMessages]);
+          if (Array.isArray(data.sourceDocs) && data.sourceDocs.length > 0) {
+            data.sourceDocs.forEach((doc, idx) => {
+              newMsgs.push({
+                sender: 'bot',
+                text: `🔗 Source ${idx + 1}: ${doc.metadata?.source || 'Unknown source'}`,
+              });
+            });
+          }
+
+          return [...msgs, ...newMsgs];
+        });
       })
-      .catch((error) => {
-        console.error('Error:', error);
-        setMessages(prev => [...prev, {
-          sender: 'bot',
-          text: '⚠️ Error connecting to backend.',
-        }]);
+      .catch(() => {
+        setMessages(prev => {
+          const msgs = [...prev];
+          msgs.pop(); // remove 'Typing...'
+          return [...msgs, {
+            sender: 'bot',
+            text: '⚠️ Error connecting to backend.',
+          }];
+        });
       });
   };
 
