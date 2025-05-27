@@ -12,11 +12,13 @@
   "description": "",
   "dependencies": {
     "@azure/core-auth": "^1.9.0",
+    "@azure/identity": "^4.10.0",
     "@azure/openai": "^2.0.0",
     "axios": "^1.9.0",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
-    "gremlin": "^3.7.3"
+    "gremlin": "^3.7.3",
+    "openai": "^4.103.0"
   }
 }

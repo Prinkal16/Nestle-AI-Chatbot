@@ -5,6 +5,7 @@ const BOT_NAME = 'NestleBot';
 const BOT_ICON = '🤖';
 
 const API_URL = "https://nestle-ai-chatbot-backend-dncveraeftgqbqbp.canadacentral-01.azurewebsites.net";
+//  const API_URL ="http://localhost:5000";
 
 function App() {
   const [isOpen, setIsOpen] = useState(false);
@@ -26,8 +27,8 @@ function App() {
       { sender: 'bot', text: 'Typing...' },
     ]);
 
-    console.log('Sending to:', `${API_URL}/api/message`);
-    fetch(`${API_URL}/api/message`, {
+    // console.log('Sending to:', `${API_URL}/api/message`);
+    fetch(`${API_URL}/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message: userMessage }),
