@@ -11,6 +11,8 @@ const auth = gremlin.driver.auth;
 
 // Import your Gremlin utility functions
 const gremlinUtils = require('./gremlinUtils'); // Path relative to index.js
+// Import your new Azure Search utility functions
+const azureSearch = require('./search'); // Path relative to index.js
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -57,8 +59,21 @@ const gremlinClient = new driver.Client(`${gremlinEndpoint}`, {
   mimeType: 'application/vnd.gremlin-v2.0+json'
 });
 
-// Initialize the gremlinUtils module with the client instance for index.js
+// Initialize the gremlinUtils module with the client instance
 gremlinUtils.initializeGremlinClient(gremlinClient);
+
+// --- NEW: Azure Search Setup ---
+const azureSearchEndpoint = process.env.AZURE_SEARCH_ENDPOINT;
+const azureSearchKey = process.env.AZURE_SEARCH_KEY; // Use admin key for simplicity in dev, or query key for production
+const azureSearchIndexName = process.env.AZURE_SEARCH_INDEX;
+
+if (!azureSearchEndpoint || !azureSearchKey || !azureSearchIndexName) {
+  console.warn("Azure Search: Missing environment variables. Azure Search context will not be available.");
+  // Do not exit, allow the app to run with only Gremlin if search is not configured
+} else {
+  azureSearch.initializeAzureSearchClient(azureSearchEndpoint, azureSearchKey, azureSearchIndexName);
+}
+
 
 // Connect to Gremlin server
 gremlinClient.open()
@@ -69,7 +84,7 @@ gremlinClient.open()
   });
 
 
-// --- NEW: Azure OpenAI LLM for Entity Extraction (Helper Function for RAG) ---
+// --- Azure OpenAI LLM for Entity Extraction (Helper Function for RAG) ---
 async function extractEntitiesWithLLM(query) {
     const prompt = `Extract any recipe names, product names, ingredient names, category names, cuisine types, dietary tags, or allergen names from the following query: "${query}". Respond as a JSON object with keys 'recipe', 'product', 'ingredient', 'category', 'cuisine', 'dietary_tag', 'allergen'. Example: {"recipe":["Classic Crispy Squares"], "product":[], "ingredient":[], "category":[], "cuisine":[], "dietary_tag":[], "allergen":[]}. If nothing found for a key, use an empty array.`;
     try {
@@ -161,24 +176,23 @@ app.get('/', (req, res) => {
   res.send('Nestlé AI Chatbot Backend is running.');
 });
 
-// --- Enhanced Sample endpoint for chat with Graph RAG ---
+// --- Enhanced Sample endpoint for chat with Graph RAG and Azure Search RAG ---
 app.post('/chat', async (req, res) => {
   const { message } = req.body;
-  console.log("Message is: " ,message);
+  console.log("User Message:", message);
 
   if (!message) {
     return res.status(400).json({ error: 'Message is required' });
   }
 
   let graphContext = '';
+  let azureSearchContext = '';
   const searchTerms = []; // Collect search terms for better logging
 
-  console.log('Code reached here 1');
   try {
     // Step 1: Extract entities from the user's query using LLM
     const extractedEntities = await extractEntitiesWithLLM(message);
     console.log("Extracted Entities (from LLM):", extractedEntities);
-    console.log('Code reached here 2');
 
     // Step 2: Build graph context based on extracted entities and inferred intent
     // Prioritize specific searches based on extracted entities
@@ -190,7 +204,6 @@ app.post('/chat', async (req, res) => {
 
         if (recipes.length > 0) {
           const recipe = recipes[0];
-          // Access properties safely using the new helper
           const currentRecipeName = getVertexName(recipe);
           if (currentRecipeName) {
             graphContext += `\nRecipe: ${currentRecipeName}. `;
@@ -209,20 +222,15 @@ app.post('/chat', async (req, res) => {
             console.log(`Could not get name for recipe vertex with id: ${recipe.id}`);
           }
 
-
-          // Get ingredients for the recipe
           const ingredients = await gremlinUtils.getConnectedVertices(recipe['id'], 'hasIngredient', 'out');
-          console.log(`Raw ingredients for ${currentRecipeName || 'N/A'}:`, JSON.stringify(ingredients, null, 2));
           if (ingredients.length > 0) {
-            const ingredientNames = ingredients.map(getVertexName).filter(Boolean); // Use helper and filter out nulls
+            const ingredientNames = ingredients.map(getVertexName).filter(Boolean);
             if (ingredientNames.length > 0) {
                 graphContext += `Required ingredients: ${ingredientNames.join(', ')}.\n`;
             }
           }
 
-          // Get Nestle products used in the recipe
           const usedProducts = await gremlinUtils.getConnectedVertices(recipe['id'], 'usesProduct', 'out');
-          console.log(`Raw products for ${currentRecipeName || 'N/A'}:`, JSON.stringify(usedProducts, null, 2));
           if (usedProducts.length > 0) {
             const productNames = usedProducts.map(getVertexName).filter(Boolean);
             if (productNames.length > 0) {
@@ -230,9 +238,7 @@ app.post('/chat', async (req, res) => {
             }
           }
 
-          // Get categories, cuisines, dietary tags for the recipe
           const categories = await gremlinUtils.getConnectedVertices(recipe['id'], 'belongsToCategory', 'out');
-          console.log(`Raw categories for ${currentRecipeName || 'N/A'}:`, JSON.stringify(categories, null, 2));
           if (categories.length > 0) {
               const categoryNames = categories.map(getVertexName).filter(Boolean);
               if (categoryNames.length > 0) {
@@ -241,7 +247,6 @@ app.post('/chat', async (req, res) => {
           }
 
           const cuisines = await gremlinUtils.getConnectedVertices(recipe['id'], 'isCuisine', 'out');
-          console.log(`Raw cuisines for ${currentRecipeName || 'N/A'}:`, JSON.stringify(cuisines, null, 2));
           if (cuisines.length > 0) {
               const cuisineNames = cuisines.map(getVertexName).filter(Boolean);
               if (cuisineNames.length > 0) {
@@ -250,7 +255,6 @@ app.post('/chat', async (req, res) => {
           }
 
           const dietaryTags = await gremlinUtils.getConnectedVertices(recipe['id'], 'hasDietaryTag', 'out');
-          console.log(`Raw dietaryTags for ${currentRecipeName || 'N/A'}:`, JSON.stringify(dietaryTags, null, 2));
           if (dietaryTags.length > 0) {
               const tagNames = dietaryTags.map(getVertexName).filter(Boolean);
               if (tagNames.length > 0) {
@@ -259,7 +263,6 @@ app.post('/chat', async (req, res) => {
           }
 
           const allergens = await gremlinUtils.getConnectedVertices(recipe['id'], 'containsAllergen', 'out');
-          console.log(`Raw allergens for ${currentRecipeName || 'N/A'}:`, JSON.stringify(allergens, null, 2));
           if (allergens.length > 0) {
               const allergenNames = allergens.map(getVertexName).filter(Boolean);
               if (allergenNames.length > 0) {
@@ -287,7 +290,6 @@ app.post('/chat', async (req, res) => {
           } else {
             console.log(`Could not get name for product vertex with id: ${product.id}`);
           }
-          // Find recipes that use this product
           const recipesUsingProduct = await gremlinUtils.getConnectedVertices(product['id'], 'usesProduct', 'in');
           if (recipesUsingProduct.length > 0) {
             const recipeNames = recipesUsingProduct.map(getVertexName).filter(Boolean);
@@ -316,7 +318,6 @@ app.post('/chat', async (req, res) => {
                 } else {
                     console.log(`Could not get name for ingredient vertex with id: ${ingredient.id}`);
                 }
-                // Find recipes that use this ingredient
                 const recipesUsingIngredient = await gremlinUtils.getConnectedVertices(ingredient['id'], 'hasIngredient', 'in');
                 if (recipesUsingIngredient.length > 0) {
                     const recipeNames = recipesUsingIngredient.map(getVertexName).filter(Boolean);
@@ -328,7 +329,6 @@ app.post('/chat', async (req, res) => {
         }
     }
 
-    // Add more conditions for 'category', 'cuisine', 'dietary_tag', 'allergen' if your bot needs to search these directly
     if (extractedEntities.category && extractedEntities.category.length > 0) {
         for (const categoryName of extractedEntities.category) {
             searchTerms.push(`Category: ${categoryName}`);
@@ -372,32 +372,66 @@ app.post('/chat', async (req, res) => {
         }
     }
 
-
-    // Limit context length to avoid exceeding token limits
-    const maxContextLength = 1500;
-    if (graphContext.length > maxContextLength) {
-      graphContext = graphContext.substring(0, maxContextLength) + '... (truncated)\n';
+    // --- NEW: Step 3: Fetch context from Azure Search ---
+    if (azureSearchEndpoint && azureSearchKey && azureSearchIndexName) {
+        try {
+            console.log("Attempting Azure Search query...");
+            const searchResults = await azureSearch.searchDocuments(message);
+            if (searchResults.length > 0) {
+                azureSearchContext += "\n--- START WEBSITE CONTENT ---\n";
+                searchResults.forEach((result, index) => {
+                    azureSearchContext += `Document ${index + 1}: Title: ${result.title}\n`;
+                    azureSearchContext += `Content: ${result.content.substring(0, 500)}...\n`; // Truncate content for brevity
+                    azureSearchContext += `URL: ${result.url}\n\n`;
+                });
+                azureSearchContext += "--- END WEBSITE CONTENT ---\n";
+            } else {
+                console.log("Azure Search returned no results.");
+            }
+        } catch (searchError) {
+            console.error('Error during Azure Search data retrieval for RAG:', searchError.message);
+            // Continue without Azure Search context if an error occurs
+        }
+    } else {
+        console.log("Azure Search not configured, skipping search context retrieval.");
     }
+
+
+    // Combine contexts and limit total length
+    let combinedContext = '';
     if (graphContext) {
-        graphContext = "--- START GRAPH CONTEXT ---\n" + graphContext + "--- END GRAPH CONTEXT ---\n";
+        combinedContext += "--- START KNOWLEDGE GRAPH CONTEXT ---\n" + graphContext + "--- END KNOWLEDGE GRAPH CONTEXT ---\n\n";
+    }
+    if (azureSearchContext) {
+        combinedContext += azureSearchContext; // Azure Search context already has its own delimiters
     }
 
-    console.log("Graph Context built:", graphContext.trim() === '--- START GRAPH CONTEXT ---\n--- END GRAPH CONTEXT ---' ? '[EMPTY]' : graphContext);
+    const maxContextLength = 2500; // Adjusted for potentially more content
+    if (combinedContext.length > maxContextLength) {
+      combinedContext = combinedContext.substring(0, maxContextLength) + '... (context truncated)\n';
+    }
+
+    if (combinedContext.trim() === '--- START KNOWLEDGE GRAPH CONTEXT ---\n--- END KNOWLEDGE GRAPH CONTEXT ---') {
+        console.log("Combined Context: [EMPTY]");
+        combinedContext = ''; // Clear empty context
+    } else {
+        console.log("Combined Context built:", combinedContext);
+    }
 
 
-  } catch (graphError) {
-    console.error('Error during graph data retrieval for RAG:', graphError.message);
-    // Continue without graph context if an error occurs
+  } catch (ragError) {
+    console.error('Error during RAG context building (Gremlin or Search):', ragError.message);
+    // Continue without RAG context if a major error occurs in context building
   }
 
   try {
     const messages = [
-      { role: 'system', 
-        content: 'You are a helpful AI assistant for MadeWithNestle.ca. Use the provided context to answer user queries concisely and accurately about recipes, products, ingredients, categories, and dietary information. Include relevant reference links from the site where appropriate. Try to mention Nestlé where ever possible. Respond in markdown format, but do not include any images or image links. If the answer is not in the context, state that you cannot answer based on the provided information. Do not mention "graph context" or "retrieved information".' },
+      { role: 'system',
+        content: `You are a helpful AI assistant for MadeWithNestle.ca. Use the provided context to answer user queries concisely and accurately about recipes, products, ingredients, categories, and dietary information. Include relevant reference links from the site where appropriate. Try to mention Nestlé where ever possible. Respond in markdown format, but do not include any images or image links. If the answer is not in the context, state that you cannot answer based on the provided information. Do not mention "knowledge graph context" or "website content" or "retrieved information".` },
     ];
 
-    if (graphContext) {
-      messages.push({ role: 'system', content: `Retrieved relevant information from the knowledge graph:\n${graphContext}` });
+    if (combinedContext) {
+      messages.push({ role: 'system', content: `Retrieved relevant information:\n${combinedContext}` });
     }
 
     messages.push({ role: 'user', content: message });
