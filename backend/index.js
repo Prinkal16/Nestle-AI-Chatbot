@@ -1,16 +1,16 @@
+// backend/index.js
+
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 
-// Import AzureOpenAI from 'openai' for the new client structure
 const { AzureOpenAI } = require('openai');
-// AzureKeyCredential is not directly used for API Key authentication with AzureOpenAI in this context
-// const { AzureKeyCredential } = require('@azure/core-auth'); // Can remove this line if not used elsewhere
+const gremlin = require('gremlin');
+const driver = gremlin.driver;
+const auth = gremlin.driver.auth;
 
-// Corrected Gremlin imports
-const gremlin = require('gremlin'); // Import the entire gremlin library
-const driver = gremlin.driver;      // Access driver from the imported gremlin object
-const auth = gremlin.driver.auth;    // Access auth from driver
+// Import your Gremlin utility functions
+const gremlinUtils = require('./gremlinUtils'); // Path relative to index.js
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -19,29 +19,20 @@ app.use(cors());
 app.use(express.json());
 
 // Azure OpenAI Setup
-// Get values from environment variables
 const azureOpenaiEndpoint = process.env.AZURE_OPENAI_ENDPOINT;
 const azureOpenaiKey = process.env.AZURE_OPENAI_API_KEY;
-const azureOpenaiDeploymentName = process.env.AZURE_OPENAI_DEPLOYMENT; // This is the deployment name
-const azureOpenaiApiVersion = process.env.AZURE_OPENAI_API_VERSION || "2024-02-01"; // Ensure this is set in .env
+const azureOpenaiDeploymentName = process.env.AZURE_OPENAI_DEPLOYMENT;
+const azureOpenaiApiVersion = process.env.AZURE_OPENAI_API_VERSION || "2024-02-01";
 
-// Ensure all essential environment variables are loaded
 if (!azureOpenaiEndpoint || !azureOpenaiKey || !azureOpenaiDeploymentName) {
   console.error("Missing essential Azure OpenAI environment variables. Please check your .env file.");
-  process.exit(1); // Exit if critical variables are missing
+  process.exit(1);
 }
 
-// Instantiate AzureOpenAI client with API key authentication using the options object
 const openaiClientOptions = {
   azureEndpoint: azureOpenaiEndpoint,
   apiKey: azureOpenaiKey,
-  // The 'deployment' parameter in the options object is typically used for client-level configuration
-  // For chat completions, 'model' parameter in the create call will take the deployment name.
-  // The documentation samples show 'deployment' in options, but then use 'model' in create call.
-  // We'll stick to 'model' in create and remove 'deployment' from options if it causes confusion,
-  // or keep it if it's implicitly handled by the client. The 'model' in create is definitive.
-  // However, the sample explicitly provides 'deployment' in options, so let's include it for consistency.
-  deployment: azureOpenaiDeploymentName, // This is explicitly shown in your sample's options
+  deployment: azureOpenaiDeploymentName,
   apiVersion: azureOpenaiApiVersion,
 };
 
@@ -52,10 +43,9 @@ const gremlinUsername = `/dbs/${process.env.COSMOSDB_DATABASE}/colls/${process.e
 const gremlinPassword = process.env.COSMOSDB_KEY;
 const gremlinEndpoint = process.env.COSMOSDB_ENDPOINT;
 
-// Ensure all environment variables for Gremlin are loaded
 if (!process.env.COSMOSDB_DATABASE || !process.env.COSMOSDB_GRAPH || !gremlinPassword || !gremlinEndpoint) {
   console.error("Missing Cosmos DB (Gremlin) environment variables. Please check your .env file.");
-  process.exit(1); // Exit if critical variables are missing
+  process.exit(1);
 }
 
 const authenticator = new auth.PlainTextSaslAuthenticator(gremlinUsername, gremlinPassword);
@@ -67,55 +57,361 @@ const gremlinClient = new driver.Client(`${gremlinEndpoint}`, {
   mimeType: 'application/vnd.gremlin-v2.0+json'
 });
 
+// Initialize the gremlinUtils module with the client instance for index.js
+gremlinUtils.initializeGremlinClient(gremlinClient);
+
 // Connect to Gremlin server
 gremlinClient.open()
   .then(() => console.log('Successfully connected to Cosmos DB Gremlin API'))
   .catch((err) => {
     console.error('Error connecting to Cosmos DB Gremlin API:', err.message);
-    console.error('Ensure COSMOS_DB_HOST, COSMOS_DB_NAME, COSMOS_DB_GRAPH, and COSMOS_DB_KEY are correct.');
+    console.error('Ensure COSMOS_DB_DATABASE, COSMOS_DB_GRAPH, COSMOSDB_KEY, and COSMOSDB_ENDPOINT are correct in your .env file.');
   });
 
 
-// Sample endpoint
+// --- NEW: Azure OpenAI LLM for Entity Extraction (Helper Function for RAG) ---
+async function extractEntitiesWithLLM(query) {
+    const prompt = `Extract any recipe names, product names, ingredient names, category names, cuisine types, dietary tags, or allergen names from the following query: "${query}". Respond as a JSON object with keys 'recipe', 'product', 'ingredient', 'category', 'cuisine', 'dietary_tag', 'allergen'. Example: {"recipe":["Classic Crispy Squares"], "product":[], "ingredient":[], "category":[], "cuisine":[], "dietary_tag":[], "allergen":[]}. If nothing found for a key, use an empty array.`;
+    try {
+        const result = await openaiClient.chat.completions.create({
+            model: azureOpenaiDeploymentName,
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.1, // Low temperature for factual extraction
+            max_tokens: 200,
+            response_format: { type: "json_object" }, // Explicitly request JSON
+        });
+        const jsonString = result.choices[0].message.content;
+        console.log("Raw LLM extraction response:", jsonString); // Log raw response for debugging
+        return JSON.parse(jsonString);
+    } catch (error) {
+        console.error("Error extracting entities with LLM:", error.message);
+        return { recipe: [], product: [], ingredient: [], category: [], cuisine: [], dietary_tag: [], allergen: [] }; // Fallback
+    }
+}
+
+// --- Cosmos DB Gremlin API Endpoints for Data Management (Optional, for dynamic adds/edits) ---
+
+// Endpoint to add a Product vertex
+app.post('/api/vertices/product', async (req, res) => {
+  const { name, category, brand, sku, image_url, url, pk } = req.body; // Expect pk from client if necessary
+
+  if (!name || !category || !pk) { // pk is crucial for partitioned graphs
+    return res.status(400).json({ error: 'Name, category, and partition key (pk) are required for a product.' });
+  }
+  try {
+    const newProduct = await gremlinUtils.addVertex('nestleProduct', { name, category, brand, sku, image_url, url, pk });
+    res.status(201).json({ message: 'Product added successfully', product: newProduct });
+  } catch (error) {
+    console.error('Error adding product:', error);
+    res.status(500).json({ error: 'Failed to add product to graph.' });
+  }
+});
+
+// Endpoint to add a Recipe vertex
+app.post('/api/vertices/recipe', async (req, res) => {
+  const { name, description, prepTime, cookTime, servings, difficulty, image_url, url, pk } = req.body;
+
+  if (!name || !pk) {
+    return res.status(400).json({ error: 'Name and partition key (pk) are required for a recipe.' });
+  }
+  try {
+    const newRecipe = await gremlinUtils.addVertex('recipe', { name, description, prepTime, cookTime, servings, difficulty, image_url, url, pk });
+    res.status(201).json({ message: 'Recipe added successfully', recipe: newRecipe });
+  } catch (error) {
+    console.error('Error adding recipe:', error);
+    res.status(500).json({ error: 'Failed to add recipe to graph.' });
+  }
+});
+
+// Endpoint to add a 'usesProduct' edge
+app.post('/api/edges/usesProduct', async (req, res) => {
+  const { recipeId, productId, quantity, unit } = req.body;
+
+  if (!recipeId || !productId) {
+    return res.status(400).json({ error: 'Both recipeId and productId are required.' });
+  }
+  try {
+    const newEdge = await gremlinUtils.addEdge(recipeId, productId, 'usesProduct', { quantity, unit });
+    res.status(201).json({ message: 'Uses product relationship added successfully', edge: newEdge });
+  } catch (error) {
+    console.error('Error adding usesProduct edge:', error);
+    res.status(500).json({ error: 'Failed to add usesProduct relationship to graph.' });
+  }
+});
+
+// Helper function to safely get the name property from a vertex object
+function getVertexName(vertex) {
+    // Corrected: Gremlin's valueMap(true) returns properties as an array of objects,
+    // where the actual value is in the 'value' field of the first object.
+    return vertex && vertex.properties && vertex.properties.name &&
+           Array.isArray(vertex.properties.name) && vertex.properties.name.length > 0 &&
+           vertex.properties.name[0].value !== undefined
+           ? String(vertex.properties.name[0].value) // Ensure it's a string
+           : null;
+}
+
+// Helper function to safely get any specific property from a vertex object
+function getVertexProperty(vertex, propertyKey) {
+    return vertex && vertex.properties && vertex.properties[propertyKey] &&
+           Array.isArray(vertex.properties[propertyKey]) && vertex.properties[propertyKey].length > 0 &&
+           vertex.properties[propertyKey][0].value !== undefined
+           ? String(vertex.properties[propertyKey][0].value) // Ensure it's a string
+           : null;
+}
+
+// --- Enhanced Sample endpoint for chat with Graph RAG ---
 app.post('/chat', async (req, res) => {
-  const { message, context } = req.body;
+  const { message } = req.body;
+  console.log("Message is: " ,message);
 
   if (!message) {
     return res.status(400).json({ error: 'Message is required' });
   }
 
-  try {
-    const messages = [
-      { role: 'system', content: 'You are a helpful AI assistant. Use the provided context to answer user queries concisely and accurately. If the answer is not in the context, state that you cannot answer based on the provided information.' },
-      { role: 'user', content: `${message}` }
-    ];
+  let graphContext = '';
+  const searchTerms = []; // Collect search terms for better logging
 
-    if (context) {
-      messages.splice(1, 0, { role: 'system', content: `Context: ${context}` });
+  console.log('Code reached here 1');
+  try {
+    // Step 1: Extract entities from the user's query using LLM
+    const extractedEntities = await extractEntitiesWithLLM(message);
+    console.log("Extracted Entities (from LLM):", extractedEntities);
+    console.log('Code reached here 2');
+
+    // Step 2: Build graph context based on extracted entities and inferred intent
+    // Prioritize specific searches based on extracted entities
+    if (extractedEntities.recipe && extractedEntities.recipe.length > 0) {
+      for (const recipeName of extractedEntities.recipe) {
+        searchTerms.push(`Recipe: ${recipeName}`);
+        const recipes = await gremlinUtils.findVertices('recipe', 'name', recipeName);
+        console.log(`Querying for recipe '${recipeName}'. Found:`, recipes.length, 'recipes');
+
+        if (recipes.length > 0) {
+          const recipe = recipes[0];
+          // Access properties safely using the new helper
+          const currentRecipeName = getVertexName(recipe);
+          if (currentRecipeName) {
+            graphContext += `\nRecipe: ${currentRecipeName}. `;
+            const description = getVertexProperty(recipe, 'description');
+            if (description) graphContext += `Description: ${description}. `;
+            const prepTime = getVertexProperty(recipe, 'prepTime');
+            if (prepTime) graphContext += `Prep Time: ${prepTime}. `;
+            const cookTime = getVertexProperty(recipe, 'cookTime');
+            if (cookTime) graphContext += `Cook Time: ${cookTime}. `;
+            const servings = getVertexProperty(recipe, 'servings');
+            if (servings) graphContext += `Servings: ${servings}. `;
+            const difficulty = getVertexProperty(recipe, 'difficulty');
+            if (difficulty) graphContext += `Difficulty: ${difficulty}.`;
+            graphContext += `\n`;
+          } else {
+            console.log(`Could not get name for recipe vertex with id: ${recipe.id}`);
+          }
+
+
+          // Get ingredients for the recipe
+          const ingredients = await gremlinUtils.getConnectedVertices(recipe['id'], 'hasIngredient', 'out');
+          console.log(`Raw ingredients for ${currentRecipeName || 'N/A'}:`, JSON.stringify(ingredients, null, 2));
+          if (ingredients.length > 0) {
+            const ingredientNames = ingredients.map(getVertexName).filter(Boolean); // Use helper and filter out nulls
+            if (ingredientNames.length > 0) {
+                graphContext += `Required ingredients: ${ingredientNames.join(', ')}.\n`;
+            }
+          }
+
+          // Get Nestle products used in the recipe
+          const usedProducts = await gremlinUtils.getConnectedVertices(recipe['id'], 'usesProduct', 'out');
+          console.log(`Raw products for ${currentRecipeName || 'N/A'}:`, JSON.stringify(usedProducts, null, 2));
+          if (usedProducts.length > 0) {
+            const productNames = usedProducts.map(getVertexName).filter(Boolean);
+            if (productNames.length > 0) {
+                graphContext += `Nestle Products used: ${productNames.join(', ')}.\n`;
+            }
+          }
+
+          // Get categories, cuisines, dietary tags for the recipe
+          const categories = await gremlinUtils.getConnectedVertices(recipe['id'], 'belongsToCategory', 'out');
+          console.log(`Raw categories for ${currentRecipeName || 'N/A'}:`, JSON.stringify(categories, null, 2));
+          if (categories.length > 0) {
+              const categoryNames = categories.map(getVertexName).filter(Boolean);
+              if (categoryNames.length > 0) {
+                  graphContext += `Categories: ${categoryNames.join(', ')}.\n`;
+              }
+          }
+
+          const cuisines = await gremlinUtils.getConnectedVertices(recipe['id'], 'isCuisine', 'out');
+          console.log(`Raw cuisines for ${currentRecipeName || 'N/A'}:`, JSON.stringify(cuisines, null, 2));
+          if (cuisines.length > 0) {
+              const cuisineNames = cuisines.map(getVertexName).filter(Boolean);
+              if (cuisineNames.length > 0) {
+                  graphContext += `Cuisine: ${cuisineNames.join(', ')}.\n`;
+              }
+          }
+
+          const dietaryTags = await gremlinUtils.getConnectedVertices(recipe['id'], 'hasDietaryTag', 'out');
+          console.log(`Raw dietaryTags for ${currentRecipeName || 'N/A'}:`, JSON.stringify(dietaryTags, null, 2));
+          if (dietaryTags.length > 0) {
+              const tagNames = dietaryTags.map(getVertexName).filter(Boolean);
+              if (tagNames.length > 0) {
+                  graphContext += `Dietary Tags: ${tagNames.join(', ')}.\n`;
+              }
+          }
+
+          const allergens = await gremlinUtils.getConnectedVertices(recipe['id'], 'containsAllergen', 'out');
+          console.log(`Raw allergens for ${currentRecipeName || 'N/A'}:`, JSON.stringify(allergens, null, 2));
+          if (allergens.length > 0) {
+              const allergenNames = allergens.map(getVertexName).filter(Boolean);
+              if (allergenNames.length > 0) {
+                  graphContext += `Contains Allergens: ${allergenNames.join(', ')}.\n`;
+              }
+          }
+        }
+      }
     }
 
-    console.log("\n--- Azure OpenAI API Call Details ---");
-    console.log("Endpoint (from .env):", azureOpenaiEndpoint);
-    console.log("Deployment Name (from .env, used as 'model'):", azureOpenaiDeploymentName);
-    console.log("API Version (from .env):", azureOpenaiApiVersion);
-    console.log("Messages being sent:", JSON.stringify(messages, null, 2));
-    console.log("--- End API Call Details ---\n");
+    if (extractedEntities.product && extractedEntities.product.length > 0) {
+      for (const productName of extractedEntities.product) {
+        searchTerms.push(`Product: ${productName}`);
+        const products = await gremlinUtils.findVertices('nestleProduct', 'name', productName);
+        if (products.length > 0) {
+          const product = products[0];
+          const currentProductName = getVertexName(product);
+          if (currentProductName) {
+            graphContext += `\nNestle Product: ${currentProductName}. `;
+            const category = getVertexProperty(product, 'category');
+            if (category) graphContext += `Category: ${category}. `;
+            const brand = getVertexProperty(product, 'brand');
+            if (brand) graphContext += `Brand: ${brand}.`;
+            graphContext += `\n`;
+          } else {
+            console.log(`Could not get name for product vertex with id: ${product.id}`);
+          }
+          // Find recipes that use this product
+          const recipesUsingProduct = await gremlinUtils.getConnectedVertices(product['id'], 'usesProduct', 'in');
+          if (recipesUsingProduct.length > 0) {
+            const recipeNames = recipesUsingProduct.map(getVertexName).filter(Boolean);
+            if (recipeNames.length > 0) {
+                graphContext += `Used in recipes: ${recipeNames.join(', ')}.\n`;
+            }
+          }
+        }
+      }
+    }
 
-    // Using the new client's chat completions API
+    if (extractedEntities.ingredient && extractedEntities.ingredient.length > 0) {
+        for (const ingredientName of extractedEntities.ingredient) {
+            searchTerms.push(`Ingredient: ${ingredientName}`);
+            const ingredients = await gremlinUtils.findVertices('ingredient', 'name', ingredientName);
+            if (ingredients.length > 0) {
+                const ingredient = ingredients[0];
+                const currentIngredientName = getVertexName(ingredient);
+                if (currentIngredientName) {
+                    graphContext += `\nIngredient: ${currentIngredientName}. `;
+                    const type = getVertexProperty(ingredient, 'type');
+                    if (type) graphContext += `Type: ${type}. `;
+                    const isAllergen = getVertexProperty(ingredient, 'is_allergen');
+                    if (isAllergen) graphContext += `Is Allergen: ${isAllergen === 'true' ? 'Yes' : 'No'}.`;
+                    graphContext += `\n`;
+                } else {
+                    console.log(`Could not get name for ingredient vertex with id: ${ingredient.id}`);
+                }
+                // Find recipes that use this ingredient
+                const recipesUsingIngredient = await gremlinUtils.getConnectedVertices(ingredient['id'], 'hasIngredient', 'in');
+                if (recipesUsingIngredient.length > 0) {
+                    const recipeNames = recipesUsingIngredient.map(getVertexName).filter(Boolean);
+                    if (recipeNames.length > 0) {
+                        graphContext += `Used in recipes: ${recipeNames.join(', ')}.\n`;
+                    }
+                }
+            }
+        }
+    }
+
+    // Add more conditions for 'category', 'cuisine', 'dietary_tag', 'allergen' if your bot needs to search these directly
+    if (extractedEntities.category && extractedEntities.category.length > 0) {
+        for (const categoryName of extractedEntities.category) {
+            searchTerms.push(`Category: ${categoryName}`);
+            const categories = await gremlinUtils.findVertices('recipeCategory', 'name', categoryName);
+            if (categories.length > 0) {
+                const category = categories[0];
+                const recipesInCategory = await gremlinUtils.getConnectedVertices(category['id'], 'belongsToCategory', 'in');
+                if (recipesInCategory.length > 0) {
+                    const recipeNames = recipesInCategory.map(getVertexName).filter(Boolean);
+                    if (recipeNames.length > 0) {
+                        graphContext += `\nRecipes in '${getVertexName(category)}' category: ${recipeNames.join(', ')}.\n`;
+                    }
+                }
+            }
+        }
+    }
+
+    if (extractedEntities.dietary_tag && extractedEntities.dietary_tag.length > 0) {
+        for (const tagName of extractedEntities.dietary_tag) {
+            searchTerms.push(`Dietary Tag: ${tagName}`);
+            const tags = await gremlinUtils.findVertices('dietaryTag', 'name', tagName);
+            if (tags.length > 0) {
+                const tag = tags[0];
+                const recipesWithTag = await gremlinUtils.getConnectedVertices(tag['id'], 'hasDietaryTag', 'in');
+                if (recipesWithTag.length > 0) {
+                    const recipeNames = recipesWithTag.map(getVertexName).filter(Boolean);
+                    if (recipeNames.length > 0) {
+                        graphContext += `\nRecipes with '${getVertexName(tag)}' dietary tag: ${recipeNames.join(', ')}.\n`;
+                    }
+                }
+            }
+        }
+    }
+
+    // Fallback if no specific entities found but user asks general questions like "What are your recipes?"
+    if (graphContext === '' && message.toLowerCase().includes('recipes')) {
+        searchTerms.push("General recipes query");
+        const allRecipes = await gremlinUtils.findVertices('recipe'); // Get a few recent/popular recipes
+        if (allRecipes.length > 0) {
+            graphContext += '\nHere are some recipes: ' + allRecipes.slice(0, 5).map(getVertexName).filter(Boolean).join(', ') + '... For more, please be specific.\n';
+        }
+    }
+
+
+    // Limit context length to avoid exceeding token limits
+    const maxContextLength = 1500;
+    if (graphContext.length > maxContextLength) {
+      graphContext = graphContext.substring(0, maxContextLength) + '... (truncated)\n';
+    }
+    if (graphContext) {
+        graphContext = "--- START GRAPH CONTEXT ---\n" + graphContext + "--- END GRAPH CONTEXT ---\n";
+    }
+
+    console.log("Graph Context built:", graphContext.trim() === '--- START GRAPH CONTEXT ---\n--- END GRAPH CONTEXT ---' ? '[EMPTY]' : graphContext);
+
+
+  } catch (graphError) {
+    console.error('Error during graph data retrieval for RAG:', graphError.message);
+    // Continue without graph context if an error occurs
+  }
+
+  try {
+    const messages = [
+      { role: 'system', content: 'You are a helpful AI assistant for MadeWithNestle.ca. Use the provided context to answer user queries concisely and accurately about recipes, products, ingredients, categories, and dietary information. If the answer is not in the context, state that you cannot answer based on the provided information. Do not mention "graph context" or "retrieved information".' },
+    ];
+
+    if (graphContext) {
+      messages.push({ role: 'system', content: `Retrieved relevant information from the knowledge graph:\n${graphContext}` });
+    }
+
+    messages.push({ role: 'user', content: message });
+
+    console.log("Final messages sent to OpenAI:", JSON.stringify(messages, null, 2));
+
     const completion = await openaiClient.chat.completions.create({
-      model: 'gpt-4.1', // This MUST be your exact Azure Deployment Name (e.g., 'nestle-gpt-35-turb0-instruct')
+      model: azureOpenaiDeploymentName,
       messages: messages,
-      temperature: 0.7,
+      temperature: 0.3, // Balance creativity and factual accuracy
       max_tokens: 800,
     });
 
-    // Accessing the content from the new client's response structure
     const reply = completion.choices[0].message.content;
     res.json({ reply });
   } catch (error) {
     console.error('Error in /chat:', error.message);
-    // You might want to provide more specific error messages based on the actual error.
-    // For a 400 "Unavailable model", the issue is likely with your environment variables.
     if (error.status === 400) {
       res.status(400).json({ error: `Azure OpenAI API Error: ${error.message}. Please verify your AZURE_OPENAI_DEPLOYMENT and AZURE_OPENAI_API_VERSION.` });
     } else {
