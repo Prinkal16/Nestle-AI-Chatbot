@@ -5,7 +5,8 @@ import './App.css';
 const BOT_NAME = 'NestleBot';
 const BOT_ICON = '🤖';
 
-const API_URL = process.env.REACT_APP_API_URL;
+const API_URL = "https://nestle-ai-chatbot-backend-dncveraeftgqbqbp.canadacentral-01.azurewebsites.net"
+// const API_URL = process.env.REACT_APP_API_URL;
 // const API_URL = "http://localhost:5000";
 
 function App() {
@@ -46,6 +47,8 @@ function App() {
     })
       .then(res => res.json())
       .then(data => {
+        console.log("📦 Backend response:", data); // 🔍 For debugging
+
         setMessages(prev => {
           const msgs = [...prev];
           msgs.pop(); // remove 'Typing...'
@@ -74,6 +77,7 @@ function App() {
           return [...msgs, ...newMsgs];
         });
       })
+
       .catch(() => {
         setMessages(prev => {
           const msgs = [...prev];
@@ -184,10 +188,10 @@ function App() {
                           </a>
                         );
                       },
-
-                      img: ({ node, ...props }) => (
-                        <img {...props} alt="img" style={{ maxWidth: '100%', borderRadius: '10px', marginTop: '8px' }} />
-                      )
+                      img: () => null,
+                      // img: ({ node, ...props }) => (
+                      //   <img {...props} alt="img" style={{ maxWidth: '100%', borderRadius: '10px', marginTop: '8px' }} />
+                      // )
                     }}
                   >
                     {msg.text}
