@@ -1,5 +1,4 @@
 // backend/gremlinUtils.js
-
 const gremlin = require('gremlin');
 const { stat } = require('fs');
 const __ = gremlin.process.statics;
@@ -7,7 +6,6 @@ const __ = gremlin.process.statics;
 let client;
 
 // Define your partition key name here.
-// IMPORTANT: This MUST match the partition key defined on your Cosmos DB graph container in Azure Portal (e.g., if it's /pk, then 'pk').
 const PARTITION_KEY_NAME = 'recipes'; // <--- VERIFY THIS MATCHES YOUR AZURE PORTAL SETTING
 
 function initializeGremlinClient(gremlinClientInstance) {
@@ -19,12 +17,6 @@ async function addVertex(label, properties) {
 
     let query = `g.addV('${label}')`;
 
-    // Ensure partition key is always added
-    // For this setup, we'll use the 'name' property as the partition key value
-    // You might need to adjust this if your partition key is different
-    // For example, if your partition key in Azure is '/pk', and you want to use the 'name' for it
-    // properties.pk = properties.name; // This is a common strategy
-
     // Add properties to the query
     for (const key in properties) {
         if (properties.hasOwnProperty(key)) {
@@ -34,14 +26,7 @@ async function addVertex(label, properties) {
         }
     }
 
-    // Add the partition key property explicitly IF IT'S NOT ALREADY INCLUDED IN `properties`
-    // and if your graph *requires* a partition key (which it does based on your error)
     if (!properties[PARTITION_KEY_NAME]) {
-        // Here, we're assuming the 'name' property can serve as a suitable partition key value.
-        // If your partition key is different (e.g., 'category', 'type'), you'll need to
-        // adjust this logic to assign the correct property to PARTITION_KEY_NAME.
-        // For simplicity, we'll use the 'name' as the partition key value for all vertices.
-        // If 'name' is not always unique or suitable, you might need a dedicated 'pk' property in your data.
         const pkValue = properties.name || label; // Fallback to label if no name
         query += `.property('${PARTITION_KEY_NAME}', '${pkValue.replace(/'/g, "\\'")}')`;
     }
@@ -55,11 +40,6 @@ async function addVertex(label, properties) {
         throw error; // Re-throw to be caught by calling function
     }
 }
-
-// ... rest of gremlinUtils.js (findVertices, addEdge, getConnectedVertices) ...
-// Make sure to add the partition key property when creating edges as well.
-// The addEdge function will need to ensure the partition key is provided for vertices it connects.
-// For edges, Cosmos DB uses the partition key of the OUT vertex.
 
 async function findVertices(label, propertyName, propertyValue) {
     if (!client) throw new Error("Gremlin client not initialized.");
@@ -85,11 +65,6 @@ async function findVertices(label, propertyName, propertyValue) {
 
 async function addEdge(fromVertexId, toVertexId, edgeLabel, properties = {}) {
     if (!client) throw new Error("Gremlin client not initialized.");
-
-    // IMPORTANT: For partitioned graphs, the 'from' vertex ID MUST include its partition key.
-    // Cosmos DB Gremlin automatically handles this when adding an edge if the source vertex ID
-    // is correctly obtained from a previous query result.
-    // However, if constructing ID manually, it needs to be like: {id: "vertexId", partitionKey: "pkValue"}
 
     let query = `g.V('${fromVertexId}').addE('${edgeLabel}').to(g.V('${toVertexId}'))`;
 

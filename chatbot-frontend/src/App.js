@@ -5,7 +5,7 @@ import './App.css';
 const BOT_NAME = 'NestleBot';
 const BOT_ICON = '🤖';
 
-const API_URL = "https://nestle-ai-chatbot-backend-dncveraeftgqbqbp.canadacentral-01.azurewebsites.net";
+const API_URL = process.env.REACT_APP_API_URL;
 // const API_URL = "http://localhost:5000";
 
 function App() {

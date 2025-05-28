@@ -77,7 +77,7 @@ async function extractEntitiesWithLLM(query) {
             model: azureOpenaiDeploymentName,
             messages: [{ role: 'user', content: prompt }],
             temperature: 0.1, // Low temperature for factual extraction
-            max_tokens: 200,
+            max_tokens: 400,
             response_format: { type: "json_object" }, // Explicitly request JSON
         });
         const jsonString = result.choices[0].message.content;
@@ -141,8 +141,6 @@ app.post('/api/edges/usesProduct', async (req, res) => {
 
 // Helper function to safely get the name property from a vertex object
 function getVertexName(vertex) {
-    // Corrected: Gremlin's valueMap(true) returns properties as an array of objects,
-    // where the actual value is in the 'value' field of the first object.
     return vertex && vertex.properties && vertex.properties.name &&
            Array.isArray(vertex.properties.name) && vertex.properties.name.length > 0 &&
            vertex.properties.name[0].value !== undefined
@@ -158,6 +156,10 @@ function getVertexProperty(vertex, propertyKey) {
            ? String(vertex.properties[propertyKey][0].value) // Ensure it's a string
            : null;
 }
+
+app.get('/', (req, res) => {
+  res.send('Nestlé AI Chatbot Backend is running.');
+});
 
 // --- Enhanced Sample endpoint for chat with Graph RAG ---
 app.post('/chat', async (req, res) => {
