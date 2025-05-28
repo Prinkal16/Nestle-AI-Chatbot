@@ -170,9 +170,21 @@ function App() {
                 >
                   <ReactMarkdown
                     components={{
-                      a: ({ node, ...props }) => (
-                        <a {...props} target="_blank" rel="noopener noreferrer" style={{ color: '#0b72b9', textDecoration: 'underline' }} />
-                      ),
+                      a: ({ node, ...props }) => {
+                        if (!props.children || props.children.length === 0) return null;
+
+                        return (
+                          <a
+                            {...props}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: '#0b72b9', textDecoration: 'underline' }}
+                          >
+                            {props.children}
+                          </a>
+                        );
+                      },
+
                       img: ({ node, ...props }) => (
                         <img {...props} alt="img" style={{ maxWidth: '100%', borderRadius: '10px', marginTop: '8px' }} />
                       )
