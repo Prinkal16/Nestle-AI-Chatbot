@@ -390,7 +390,8 @@ app.post('/chat', async (req, res) => {
 
   try {
     const messages = [
-      { role: 'system', content: 'You are a helpful AI assistant for MadeWithNestle.ca. Use the provided context to answer user queries concisely and accurately about recipes, products, ingredients, categories, and dietary information. If the answer is not in the context, state that you cannot answer based on the provided information. Do not mention "graph context" or "retrieved information".' },
+      { role: 'system', 
+        content: 'You are a helpful AI assistant for MadeWithNestle.ca. Use the provided context to answer user queries concisely and accurately about recipes, products, ingredients, categories, and dietary information. Include relevant reference links from the site and also images(fetch them from https://www.madewithnestle.ca/ website) where appropriate.Try to mention Nestlé where ever possible. Format them using markdown. If the answer is not in the context, state that you cannot answer based on the provided information. Do not mention "graph context" or "retrieved information".' },
     ];
 
     if (graphContext) {

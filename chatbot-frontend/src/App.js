@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
 import './App.css';
 
 const BOT_NAME = 'NestleBot';
 const BOT_ICON = '🤖';
 
 const API_URL = "https://nestle-ai-chatbot-backend-dncveraeftgqbqbp.canadacentral-01.azurewebsites.net";
-// const API_URL ="http://localhost:5000";
+// const API_URL = "http://localhost:5000";
 
 function App() {
   const [isOpen, setIsOpen] = useState(false);
@@ -13,8 +14,19 @@ function App() {
     { sender: 'bot', text: 'Hi! I am NestleBot. How can I help you?' },
   ]);
   const [input, setInput] = useState('');
+  const chatEndRef = useRef(null);
 
   const toggleChat = () => setIsOpen(!isOpen);
+
+  const scrollToBottom = () => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   const sendMessage = () => {
     if (!input.trim()) return;
@@ -27,7 +39,6 @@ function App() {
       { sender: 'bot', text: 'Typing...' },
     ]);
 
-    // console.log('Sending to:', `${API_URL}/api/message`);
     fetch(`${API_URL}/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -50,10 +61,13 @@ function App() {
 
           if (Array.isArray(data.sourceDocs) && data.sourceDocs.length > 0) {
             data.sourceDocs.forEach((doc, idx) => {
-              newMsgs.push({
-                sender: 'bot',
-                text: `🔗 Source ${idx + 1}: ${doc.metadata?.source || 'Unknown source'}`,
-              });
+              const source = doc.metadata?.source;
+              if (source) {
+                newMsgs.push({
+                  sender: 'bot',
+                  text: `🔗 Source ${idx + 1}: [${source}](${source})`,
+                });
+              }
             });
           }
 
@@ -154,10 +168,22 @@ function App() {
                     wordWrap: 'break-word',
                   }}
                 >
-                  {msg.text}
+                  <ReactMarkdown
+                    components={{
+                      a: ({ node, ...props }) => (
+                        <a {...props} target="_blank" rel="noopener noreferrer" style={{ color: '#0b72b9', textDecoration: 'underline' }} />
+                      ),
+                      img: ({ node, ...props }) => (
+                        <img {...props} alt="img" style={{ maxWidth: '100%', borderRadius: '10px', marginTop: '8px' }} />
+                      )
+                    }}
+                  >
+                    {msg.text}
+                  </ReactMarkdown>
                 </span>
               </div>
             ))}
+            <div ref={chatEndRef} />
           </div>
           <div style={{ display: 'flex', borderTop: '1px solid #ddd' }}>
             <input
