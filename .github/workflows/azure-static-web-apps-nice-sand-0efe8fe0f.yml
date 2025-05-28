@@ -33,7 +33,7 @@ jobs:
           output_location: "build" # Built app content directory - optional
           ###### End of Repository/Build Configurations ######
         env:
-          BACKEND_URL: ${{ secrets.BACKEND_URL}}
+          REACT_APP_BACKEND_URL: ${{ secrets.BACKEND_URL}}
 
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
