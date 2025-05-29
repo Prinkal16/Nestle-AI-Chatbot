@@ -66,6 +66,7 @@ gremlinUtils.initializeGremlinClient(gremlinClient);
 const azureSearchEndpoint = process.env.AZURE_SEARCH_ENDPOINT;
 const azureSearchKey = process.env.AZURE_SEARCH_KEY; // Use admin key for simplicity in dev, or query key for production
 const azureSearchIndexName = process.env.AZURE_SEARCH_INDEX;
+console.log("Azure Search Index Name: " , azureSearchIndexName);
 
 if (!azureSearchEndpoint || !azureSearchKey || !azureSearchIndexName) {
   console.warn("Azure Search: Missing environment variables. Azure Search context will not be available.");
@@ -429,7 +430,7 @@ app.post('/chat', async (req, res) => {
   try {
     const messages = [
       { role: 'system',
-        content: `You are a helpful AI assistant for MadeWithNestle.ca. Use the provided context to answer user queries concisely and accurately about recipes, products, ingredients, categories, and dietary information. Include relevant reference links from the site where appropriate. Try to mention Nestlé where ever possible. Respond in markdown format, but do not include any images or image links. If the answer is not in the context, state that you cannot answer based on the provided information. Do not mention "knowledge graph context" or "website content" or "retrieved information".` },
+        content: `You are a helpful AI assistant for MadeWithNestle.ca. Use the provided context to answer user queries concisely and accurately about recipes, products, ingredients, categories, and dietary information. Include relevant and only correct reference links from the site where appropriate. Try to mention Nestlé where ever possible. Respond in markdown format, but do not include any images or image links. If the answer is not in the context, state that you cannot answer based on the provided information. Do not mention "knowledge graph context" or "website content" or "retrieved information".` },
     ];
 
     if (combinedContext) { // This check ensures we only add context if it's not empty

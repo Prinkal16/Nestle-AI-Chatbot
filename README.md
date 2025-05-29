@@ -1,24 +1,67 @@
 # 🤖 Nestlé AI Chatbot
-An intelligent chatbot designed to assist users with content from madewithnestle.ca, powered by Azure OpenAI, Cosmos DB (GraphRAG), and vector search using Azure Cognitive Search. The project is container-free, deployed on Azure App Services (backend) and Azure Static Web Apps (frontend).
 
-## 🗂️ Table of Contents
-- [Features](#features)
-- [Architecture](#architecture)
-- [Technologies Used](#technologies-used)
-- [Local Setup](#local-setup)
-  - [1. Clone Repository](#1-clone-repository)
-  - [2. Setup Backend](#2-setup-backend)
-  - [3. Setup Frontend](#3-setup-frontend)
-- [Deployment to Azure](#deployment-to-azure)
-  - [1. Deploy Backend (Azure App Service)](#1-deploy-backend-azure-app-service)
-  - [2. Deploy Frontend (Azure Static Web Apps)](#2-deploy-frontend-azure-static-web-apps)
-- [Extending the Chatbot](#extending-the-chatbot)
-  - [➕ Add New GraphRAG Nodes](#-add-new-graphrag-nodes)
-  - [🧽 Improve Web Scraping](#-improve-web-scraping)
-  - [🧠 Switch Embedding Providers](#-switch-embedding-providers)
-- [Project Structure](#project-structure)
-- [Contributing](#contributing)
-- [License](#license)
+An intelligent chatbot designed to assist users with content from madewithnestle.ca, powered by Azure OpenAI, Cosmos DB (GraphRAG), and vector search using Azure Cognitive Search. The project is container-free, deployed on Azure App Services (backend) and Azure Static Web Apps (frontend).
+An AI-powered chatbot built to assist users with queries related to Made with Nestlé. The chatbot leverages advanced NLP and graph-based techniques to provide accurate, contextual responses by integrating:
+
+🔍 Web scraping with Playwright (Google Colab)
+
+🤗 Hugging Face embeddings for document indexing
+
+🧠 Azure OpenAI GPT-4.1 for generating responses
+
+🔗 GraphRAG using Cosmos DB Gremlin API
+
+🌐 Deployed on Azure (Frontend & Backend)
+
+---
+
+## 🌐 Live Chatbot (Azure)
+
+🟢 **Frontend (React on Azure Static Web Apps)**:  
+👉 Frontend (Chatbot UI): https://nice-sand-0efe8fe0f.6.azurestaticapps.net/
+
+🟢 **Backend (Node.js on Azure App Service)**:  
+👉 Backend API URL: https://nestle-ai-chatbot-backend-dncveraeftgqbqbp.canadacentral-01.azurewebsites.net
+
+---
+
+## ✅ Submission Checklist
+
+| Requirement                                | Status             |
+|--------------------------------------------|--------------------|
+| Code uploaded to GitHub                    | ✅ Done            |
+| Azure chatbot accessible for testing       | ✅ Live Link Below |
+| README with setup steps                    | ✅ Included        |
+| Technologies & frameworks documented       | ✅ Included        |
+| Limitations / additional features listed   | ✅ Included        |
+| Functional chatbot with Nestlé content     | ✅ Complete        |
+
+---
+
+
+
+## 🧠 About the Chatbot
+
+- Handles user queries related to Nestlé recipes and products.
+- Fetches and indexes data dynamically from the MadeWithNestle.ca site.
+- Uses Hugging Face for generating embeddings.
+- Employs Azure Cognitive Search + Cosmos DB Graph (Gremlin) for GraphRAG.
+- Returns context and source links for transparency.
+
+---
+
+## 🛠 Technologies & Frameworks Used
+
+| Layer      | Technology                           |
+|------------|--------------------------------------|
+| Frontend   | React, ReactMarkdown, CSS            |
+| Backend    | Node.js, Express                     |
+| Vector DB  | Azure Cognitive Search               |
+| Embedding  | Hugging Face `sentence-transformers` |
+| Scraping   | Playwright (in Google Colab)         |
+| GraphRAG   | Cosmos DB Gremlin API                |
+| GenrateResponse   | Azure OpenAI GPT-4.1                |
+| Hosting    | Azure App Service, Azure Static Web Apps |
 
 ---
 
@@ -27,7 +70,7 @@ An intelligent chatbot designed to assist users with content from madewithnestle
 -Embeds data using Hugging Face models.
 -Stores vectors in Azure Cognitive Search.
 -Integrates Azure OpenAI for responses.
--Injects context from Cosmos DB (Gremlin Graph) via GraphRAG.
+-Injects context from vector search (Search Index) and Cosmos DB (Gremlin Graph) via GraphRAG.
 -Provides source citations in bot replies.
 
 
@@ -52,13 +95,32 @@ User ➝ React Frontend ➝ Node.js Backend ➝ Azure OpenAI
 ## 🧰 Local Setup
 
 ### 1. Clone Repository
-...
+git clone https://github.com/Prinkal16/Nestle-AI-Chatbot.git
+cd Nestle-AI-Chatbot
 
 ### 2. Setup Backend
-...
+cd backend
+npm install
+
+Create a .env file:
+PORT=5000
+AZURE_SEARCH_ENDPOINT=your-search-endpoint
+AZURE_SEARCH_KEY=your-key
+HUGGINGFACE_API_KEY=your-huggingface-token
+COSMOS_DB_ENDPOINT=your-cosmos-endpoint
+COSMOS_DB_KEY=your-cosmos-key
+COSMOS_DB_DATABASE=your-db-name
+COSMOS_DB_GRAPH=your-graph-name
+
+Run the backend:
+npm start
 
 ### 3. Setup Frontend
-...
+cd frontend
+npm install
+npm start
+Update API_URL in App.js to point to the local backend if testing locally.
+
 
 ## ☁️ Deployment to Azure
 1. Backend (Azure App Service)
@@ -73,7 +135,16 @@ User ➝ React Frontend ➝ Node.js Backend ➝ Azure OpenAI
 -Set build folder to /frontend
 -Azure auto-generates workflow for deployment
 
+## 🕸 Web Scraping via Google Colab (Playwright)
+- Used Playwright with Chromium in Google Colab to scrape dynamic content from madewithnestle.ca
 
+-Key Features:
+  Scrapes recipes, product info, ingredients, instructions
+  Embeds data using Hugging Face models
+  Pushes processed data to Azure Cognitive Search
+
+-📁 Notebook file: nestle-scraper.ipynb
+Link: https://colab.research.google.com/drive/1NCQbw1MYDPb_h5TlGjYNqhTuT41O2cAg?usp=sharing
 
 ## 🔧 Extending the Chatbot
 
@@ -89,27 +160,28 @@ User ➝ React Frontend ➝ Node.js Backend ➝ Azure OpenAI
     -Remove hardcoded links
     -Reprocess and re-upload content to Azure Cognitive Search
 
+## ⚠️ Known Limitations
+Initial response time can vary slightly due to Azure cold starts.
+Web scraping coverage is limited to what is available at crawl time.
+Hugging Face embeddings are generated in batches, may omit some edge cases.
+Some deeply nested product details may not be fully indexed.
+
 ### 🧠 Switch Embedding Providers
 -switched from OpenAI to Hugging Face:
 
 ## 📁 Project Structure
 
 Nestle-AI-Chatbot/
-├── backend/
-│   ├── index.js
+├── backend/        #Node.js + Express backend 
+│   ├── index.js      #Handles OpenAI requests, graph querying
 │   ├── gremlinUtils.js
 │   ├── populateGraph.js
 │   └── ...
-├── frontend/
-│   ├── App.js
+├── frontend/     # React.js chatbot widget
+│   ├── App.js    # Chat logic and UI
 │   ├── App.css
 │   └── ...
-├── scraping_and_embedding.ipynb
+├── scraping_and_embedding.ipynb    #Google Colab notebook
 ├── README.md
-└── .github/workflows/
+└── .github/workflows/        #GitHub Actions for CI/CD
 
-## 🙋 Contributing
-...
-
-## 📜 License
-...
