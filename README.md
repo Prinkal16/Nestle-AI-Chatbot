@@ -92,22 +92,21 @@ An AI-powered chatbot built to assist users with queries related to Made with Ne
                 |   - gremlinUtils.js       |
                 +-----------+--------------+
                             |
-   +------------------------+--------------------------+
-   |                        |                          |
-   v                        v                          v
-  +---------------+ +---------------------+ +------------------------+
-| Azure OpenAI | | Azure Cognitive | | Cosmos DB (Gremlin) |
-| GPT-4.1 Model | | Search Index | | - GraphRAG Queries |
-| (for chat) | | (via Hugging Face | | - populateGraph.js |
-| | | embeddings) | | |
-+---------------+ +---------------------+ +------------------------+
-                 ^
-                 |
-      +----------+-----------+
-      | Scraping Notebook    |
-      | (Google Colab:       |
-      | nestle-scraper.ipynb)|
-      +----------------------+
+   +------------------------+------------------------------+
+   |                        |                              |
+   v                        v                              v
+  +---------------+ +-------------------------------+ +---------------------+
+  | Azure OpenAI  | | Azure Cognitive               | | Cosmos DB (Gremlin) |
+  | GPT-4.1 Model | | Search Index                  | | - GraphRAG Queries  |
+  | (for chat)    | | (via Hugging Face embeddings) | | - populateGraph.js  |
+  +---------------+ +-------------------------------+ +---------------------+
+                            ^
+                            |
+                  +----------+-----------+
+                  | Scraping Notebook    |
+                  | (Google Colab:       |
+                  | nestle-scraper.ipynb)|
+                  +----------------------+
 ```
 
 ---
