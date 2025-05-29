@@ -72,35 +72,65 @@ An AI-powered chatbot built to assist users with queries related to Made with Ne
 
 ---
 
+## 🏗️ System Architecture
+```bash
+                +--------------------------+
+                |  👩‍🍳 User (Web Visitor)   |
+                +-----------+--------------+
+                            |
+                            v
+                +--------------------------+
+                |     🌐 React Frontend     |
+                |  (Chatbot Widget in App) |
+                +-----------+--------------+
+                            |
+                            v
+                +--------------------------+
+                | Node.js + Express Backend |
+                |   - index.js              |
+                |   - search.js             |
+                |   - gremlinUtils.js       |
+                +-----------+--------------+
+                            |
+   +------------------------+--------------------------+
+   |                        |                          |
+   v                        v                          v
+  +---------------+ +---------------------+ +------------------------+
+| Azure OpenAI | | Azure Cognitive | | Cosmos DB (Gremlin) |
+| GPT-4.1 Model | | Search Index | | - GraphRAG Queries |
+| (for chat) | | (via Hugging Face | | - populateGraph.js |
+| | | embeddings) | | |
++---------------+ +---------------------+ +------------------------+
+                 ^
+                 |
+      +----------+-----------+
+      | Scraping Notebook    |
+      | (Google Colab:       |
+      | nestle-scraper.ipynb)|
+      +----------------------+
+```
+
+---
 
 ## 🧰 Local Setup
 
 ### 1. Clone Repository
-  git clone https://github.com/Prinkal16/Nestle-AI-Chatbot.git
-  cd Nestle-AI-Chatbot
+- git clone https://github.com/Prinkal16/Nestle-AI-Chatbot.git
+- cd Nestle-AI-Chatbot
 
 ### 2. Setup Backend
-cd backend
-npm install
-
-Create a .env file:
-PORT=5000
-AZURE_SEARCH_ENDPOINT=your-search-endpoint
-AZURE_SEARCH_KEY=your-key
-HUGGINGFACE_API_KEY=your-huggingface-token
-COSMOS_DB_ENDPOINT=your-cosmos-endpoint
-COSMOS_DB_KEY=your-cosmos-key
-COSMOS_DB_DATABASE=your-db-name
-COSMOS_DB_GRAPH=your-graph-name
-
-Run the backend:
-npm start
+- cd backend
+- npm install
+- Create a .env file:
+  - PORT=5000, AZURE_SEARCH_ENDPOINT=your-search-endpoint, AZURE_SEARCH_KEY=your-key, HUGGINGFACE_API_KEY=your-huggingface-token, COSMOS_DB_ENDPOINT=your-cosmos-endpoint, COSMOS_DB_KEY=your-cosmos-key, COSMOS_DB_DATABASE=your-db-name, COSMOS_DB_GRAPH=your-graph-name
+- Run the backend:
+- npm start
 
 ### 3. Setup Frontend
-cd frontend
-npm install
-npm start
-Update API_URL in App.js to point to the local backend if testing locally.
+- cd frontend
+- npm install
+- npm start
+- Update API_URL in App.js to point to the local backend if testing locally.
 
 
 ## ☁️ Deployment to Azure
