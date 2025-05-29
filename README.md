@@ -1,4 +1,4 @@
-# 🤖 Nestlé AI Chatbot
+# 🤖 Made With Nestlé AI Chatbot
 
 An AI-powered chatbot built to assist users with queries related to Made with Nestlé. The chatbot leverages advanced NLP and graph-based techniques to provide accurate, contextual responses.
 
@@ -150,6 +150,7 @@ Update API_URL in App.js to point to the local backend if testing locally.
 
 ## 📁 Project Structure
 
+```bash
 Nestle-AI-Chatbot/
 │
 ├── frontend/                        # React.js chatbot widget
@@ -171,7 +172,8 @@ Nestle-AI-Chatbot/
 ├── .github/workflows/               # GitHub Actions for CI/CD
 │
 └── README.md                        #GitHub Actions for CI/CD
-___
+
+```
 
 ---
 
