@@ -42,7 +42,7 @@ async function searchDocuments(queryText, searchFields = [], topN = 5) {
     try {
         console.log(`Azure Search: Searching for "${queryText}" in index "${searchIndexName}"...`);
         const searchOptions = {
-            queryType: "semantic", // Use semantic search for better relevance if configured
+            // queryType: "semantic", // Use semantic search for better relevance if configured
             queryLanguage: "en-us",
             semanticConfiguration: "default", // Ensure you have a semantic configuration named 'default'
             top: topN,

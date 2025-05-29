@@ -1,15 +1,14 @@
-// backend/gremlinUtils.js
 const gremlin = require('gremlin');
 const { stat } = require('fs');
 const __ = gremlin.process.statics;
 
 let client;
 
-// Define your partition key name here.
-const PARTITION_KEY_NAME = 'recipes'; // <--- VERIFY THIS MATCHES YOUR AZURE PORTAL SETTING
+const PARTITION_KEY_NAME = 'recipes'; // <-- Double-check this against your Azure portal
 
 function initializeGremlinClient(gremlinClientInstance) {
     client = gremlinClientInstance;
+    console.log("✅ Gremlin client initialized.");
 }
 
 async function addVertex(label, properties) {
@@ -17,27 +16,26 @@ async function addVertex(label, properties) {
 
     let query = `g.addV('${label}')`;
 
-    // Add properties to the query
     for (const key in properties) {
         if (properties.hasOwnProperty(key)) {
-            // Escape single quotes in property values
             const escapedValue = String(properties[key]).replace(/'/g, "\\'");
             query += `.property('${key}', '${escapedValue}')`;
         }
     }
 
     if (!properties[PARTITION_KEY_NAME]) {
-        const pkValue = properties.name || label; // Fallback to label if no name
+        const pkValue = properties.name || label;
         query += `.property('${PARTITION_KEY_NAME}', '${pkValue.replace(/'/g, "\\'")}')`;
     }
 
+    console.log(`📌 Executing Gremlin Add Vertex Query:\n${query}`);
+
     try {
         const result = await client.submit(query, {});
-        // Cosmos DB Gremlin API returns an array for addV, even for a single vertex
         return result.toArray()[0];
     } catch (error) {
-        console.error(`Error executing Gremlin query "${query}":`, error.message);
-        throw error; // Re-throw to be caught by calling function
+        console.error(`❌ Error executing Gremlin Add Vertex:`, error.message);
+        throw error;
     }
 }
 
@@ -46,19 +44,19 @@ async function findVertices(label, propertyName, propertyValue) {
 
     let query = `g.V().hasLabel('${label}')`;
     if (propertyName && propertyValue) {
-        // Escape single quotes for property value in query
         const escapedValue = String(propertyValue).replace(/'/g, "\\'");
         query += `.has('${propertyName}', '${escapedValue}')`;
     }
-    // For partitioned graphs, findVertices should ideally also use the partition key for efficiency,
-    // but the Cosmos DB Gremlin API will often handle it if not explicitly in the query.
-    // However, it's good practice to filter by partition key if known.
+
+    console.log(`🔍 Executing Gremlin Find Vertices Query:\n${query}`);
 
     try {
         const result = await client.submit(query, {});
-        return result.toArray();
+        const output = result.toArray();
+        console.log(`✅ Found ${output.length} vertices for label "${label}"`);
+        return output;
     } catch (error) {
-        console.error(`Error executing Gremlin query "${query}":`, error.message);
+        console.error(`❌ Error executing Gremlin Find Vertices:`, error.message);
         throw error;
     }
 }
@@ -68,7 +66,6 @@ async function addEdge(fromVertexId, toVertexId, edgeLabel, properties = {}) {
 
     let query = `g.V('${fromVertexId}').addE('${edgeLabel}').to(g.V('${toVertexId}'))`;
 
-    // Add properties to the edge
     for (const key in properties) {
         if (properties.hasOwnProperty(key)) {
             const escapedValue = String(properties[key]).replace(/'/g, "\\'");
@@ -76,11 +73,13 @@ async function addEdge(fromVertexId, toVertexId, edgeLabel, properties = {}) {
         }
     }
 
+    console.log(`🔗 Executing Gremlin Add Edge Query:\n${query}`);
+
     try {
         const result = await client.submit(query, {});
         return result.toArray()[0];
     } catch (error) {
-        console.error(`Error executing Gremlin query "${query}":`, error.message);
+        console.error(`❌ Error executing Gremlin Add Edge:`, error.message);
         throw error;
     }
 }
@@ -99,15 +98,18 @@ async function getConnectedVertices(vertexId, edgeLabel, direction = 'out') {
         throw new Error("Invalid direction. Must be 'in', 'out', or 'both'.");
     }
 
+    console.log(`🌐 Executing Gremlin Get Connected Vertices Query:\n${query}`);
+
     try {
         const result = await client.submit(query, {});
-        return result.toArray();
+        const output = result.toArray();
+        console.log(`🔗 Found ${output.length} connected vertices via edge "${edgeLabel}"`);
+        return output;
     } catch (error) {
-        console.error(`Error executing Gremlin query "${query}":`, error.message);
+        console.error(`❌ Error executing Gremlin Get Connected Vertices:`, error.message);
         throw error;
     }
 }
-
 
 module.exports = {
     initializeGremlinClient,
@@ -115,5 +117,5 @@ module.exports = {
     findVertices,
     addEdge,
     getConnectedVertices,
-    PARTITION_KEY_NAME // Export this for verification
+    PARTITION_KEY_NAME
 };

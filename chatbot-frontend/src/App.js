@@ -1,17 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { v4 as uuidv4 } from 'uuid';
 import './App.css';
 
 const BOT_NAME = 'NestleBot';
 const BOT_ICON = '🤖';
-
 const API_URL = process.env.REACT_APP_BACKEND_URL;
-// const API_URL = "http://localhost:5000";
+// const API_URL = "http://localhost:5000"
+
+const conversationId = uuidv4(); // Unique session ID
 
 function App() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
     { sender: 'bot', text: 'Hi! I am NestleBot. How can I help you?' },
+  ]);
+  const [chatHistory, setChatHistory] = useState([
+    { role: 'assistant', content: 'Hi! I am NestleBot. How can I help you?' },
   ]);
   const [input, setInput] = useState('');
   const chatEndRef = useRef(null);
@@ -33,26 +38,41 @@ function App() {
 
     const userMessage = input;
     setInput('');
+
     setMessages(prev => [
       ...prev,
       { sender: 'user', text: userMessage },
       { sender: 'bot', text: 'Typing...' },
     ]);
 
+    const updatedHistory = [
+      ...chatHistory,
+      { role: 'user', content: userMessage },
+    ];
+
     fetch(`${API_URL}/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: userMessage }),
+      body: JSON.stringify({
+        messages: updatedHistory,
+        conversationId: conversationId,
+      }),
     })
       .then(res => res.json())
       .then(data => {
-        console.log("📦 Backend response:", data); // 🔍 For debugging
+        const botReply = data.response;
+
+        const newHistory = [
+          ...updatedHistory,
+          { role: 'assistant', content: botReply },
+        ];
+        setChatHistory(newHistory);
 
         setMessages(prev => {
           const msgs = [...prev];
           msgs.pop(); // remove 'Typing...'
 
-          const newMsgs = [{ sender: 'bot', text: data.reply }];
+          const newMsgs = [{ sender: 'bot', text: botReply }];
 
           if (data.graphContext) {
             newMsgs.push({
@@ -76,15 +96,17 @@ function App() {
           return [...msgs, ...newMsgs];
         });
       })
-
       .catch(() => {
         setMessages(prev => {
           const msgs = [...prev];
           msgs.pop(); // remove 'Typing...'
-          return [...msgs, {
-            sender: 'bot',
-            text: '⚠️ Error connecting to backend.',
-          }];
+          return [
+            ...msgs,
+            {
+              sender: 'bot',
+              text: '⚠️ Error connecting to backend.',
+            },
+          ];
         });
       });
   };
@@ -165,7 +187,8 @@ function App() {
                     display: 'inline-block',
                     padding: '8px 12px',
                     borderRadius: 15,
-                    backgroundColor: msg.sender === 'user' ? '#0b72b9' : '#e0e0e0',
+                    backgroundColor:
+                      msg.sender === 'user' ? '#0b72b9' : '#e0e0e0',
                     color: msg.sender === 'user' ? 'white' : 'black',
                     maxWidth: '75%',
                     wordWrap: 'break-word',
@@ -174,23 +197,23 @@ function App() {
                   <ReactMarkdown
                     components={{
                       a: ({ node, ...props }) => {
-                        if (!props.children || props.children.length === 0) return null;
-
+                        if (!props.children || props.children.length === 0)
+                          return null;
                         return (
                           <a
                             {...props}
                             target="_blank"
                             rel="noopener noreferrer"
-                            style={{ color: '#0b72b9', textDecoration: 'underline' }}
+                            style={{
+                              color: '#0b72b9',
+                              textDecoration: 'underline',
+                            }}
                           >
                             {props.children}
                           </a>
                         );
                       },
                       img: () => null,
-                      // img: ({ node, ...props }) => (
-                      //   <img {...props} alt="img" style={{ maxWidth: '100%', borderRadius: '10px', marginTop: '8px' }} />
-                      // )
                     }}
                   >
                     {msg.text}
