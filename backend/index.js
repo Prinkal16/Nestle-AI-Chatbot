@@ -187,6 +187,7 @@ app.post('/chat', async (req, res) => {
 
   let graphContext = '';
   let azureSearchContext = '';
+  let combinedContext = ''; // MOVED DECLARATION HERE to prevent 'not defined' error
   const searchTerms = []; // Collect search terms for better logging
 
   try {
@@ -381,7 +382,7 @@ app.post('/chat', async (req, res) => {
                 azureSearchContext += "\n--- START WEBSITE CONTENT ---\n";
                 searchResults.forEach((result, index) => {
                     azureSearchContext += `Document ${index + 1}: Title: ${result.title}\n`;
-                    azureSearchContext += `Content: ${result.content.substring(0, 500)}...\n`; // Truncate content for brevity
+                    azureSearchContext += `Content: ${result.content.substring(0, 500)}...\n`; // Ensure 'content' exists
                     azureSearchContext += `URL: ${result.url}\n\n`;
                 });
                 azureSearchContext += "--- END WEBSITE CONTENT ---\n";
@@ -398,22 +399,22 @@ app.post('/chat', async (req, res) => {
 
 
     // Combine contexts and limit total length
-    let combinedContext = '';
     if (graphContext) {
         combinedContext += "--- START KNOWLEDGE GRAPH CONTEXT ---\n" + graphContext + "--- END KNOWLEDGE GRAPH CONTEXT ---\n\n";
     }
     if (azureSearchContext) {
-        combinedContext += azureSearchContext; // Azure Search context already has its own delimiters
+        combinedContext += azureSearchContext;
     }
 
-    const maxContextLength = 2500; // Adjusted for potentially more content
+    const maxContextLength = 2500;
     if (combinedContext.length > maxContextLength) {
       combinedContext = combinedContext.substring(0, maxContextLength) + '... (context truncated)\n';
     }
 
-    if (combinedContext.trim() === '--- START KNOWLEDGE GRAPH CONTEXT ---\n--- END KNOWLEDGE GRAPH CONTEXT ---') {
+    // Fix: Check if combinedContext is empty after all processing
+    if (combinedContext.trim() === '' || combinedContext.trim() === '--- START KNOWLEDGE GRAPH CONTEXT ---\n--- END KNOWLEDGE GRAPH CONTEXT ---') {
         console.log("Combined Context: [EMPTY]");
-        combinedContext = ''; // Clear empty context
+        combinedContext = ''; // Ensure it's truly empty if no relevant content was found
     } else {
         console.log("Combined Context built:", combinedContext);
     }
@@ -421,7 +422,8 @@ app.post('/chat', async (req, res) => {
 
   } catch (ragError) {
     console.error('Error during RAG context building (Gremlin or Search):', ragError.message);
-    // Continue without RAG context if a major error occurs in context building
+    // If a major error occurs, combinedContext might still be empty from its declaration, which is fine.
+    // If you wanted to provide a generic fallback message here, you could.
   }
 
   try {
@@ -430,7 +432,7 @@ app.post('/chat', async (req, res) => {
         content: `You are a helpful AI assistant for MadeWithNestle.ca. Use the provided context to answer user queries concisely and accurately about recipes, products, ingredients, categories, and dietary information. Include relevant reference links from the site where appropriate. Try to mention Nestlé where ever possible. Respond in markdown format, but do not include any images or image links. If the answer is not in the context, state that you cannot answer based on the provided information. Do not mention "knowledge graph context" or "website content" or "retrieved information".` },
     ];
 
-    if (combinedContext) {
+    if (combinedContext) { // This check ensures we only add context if it's not empty
       messages.push({ role: 'system', content: `Retrieved relevant information:\n${combinedContext}` });
     }
 
@@ -441,7 +443,7 @@ app.post('/chat', async (req, res) => {
     const completion = await openaiClient.chat.completions.create({
       model: azureOpenaiDeploymentName,
       messages: messages,
-      temperature: 0.3, // Balance creativity and factual accuracy
+      temperature: 0.3,
       max_tokens: 800,
     });
 

@@ -46,7 +46,7 @@ async function searchDocuments(queryText, searchFields = [], topN = 5) {
             queryLanguage: "en-us",
             semanticConfiguration: "default", // Ensure you have a semantic configuration named 'default'
             top: topN,
-            select: ["title", "content", "url", "description"], // Adjust fields based on your index schema
+            select: ["title", "url", "content"], // MODIFIED: Using your provided fields
             searchFields: searchFields.length > 0 ? searchFields : undefined,
         };
 
@@ -57,7 +57,7 @@ async function searchDocuments(queryText, searchFields = [], topN = 5) {
             results.push({
                 score: result.score,
                 title: result.document.title || 'No Title',
-                content: result.document.content || result.document.description || 'No content available', // Prioritize content, then description
+                content: result.document.content || 'No content available', // MODIFIED: Only checks 'content' now
                 url: result.document.url || '#'
             });
         }
