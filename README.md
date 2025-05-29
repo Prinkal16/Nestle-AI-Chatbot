@@ -1,4 +1,4 @@
-# 🤖 Made With Nestlé AI Chatbot
+# 🤖 Nestlé AI Chatbot
 
 An AI-powered chatbot built to assist users with queries related to Made with Nestlé. The chatbot leverages advanced NLP and graph-based techniques to provide accurate, contextual responses.
 
@@ -65,7 +65,7 @@ An AI-powered chatbot built to assist users with queries related to Made with Ne
 | Backend    | Node.js, Express                     |
 | Vector DB  | Azure Cognitive Search               |
 | Embedding  | Hugging Face `sentence-transformers` |
-| Scraping   | Playwright (in Google Colab)         |
+| Scraping   | Playwright and Python (in Google Colab)         |
 | GraphRAG   | Cosmos DB Gremlin API                |
 | Generate Response   | Azure OpenAI GPT-4.1                |
 | Hosting    | Azure App Service, Azure Static Web Apps |
