@@ -39,8 +39,8 @@ An AI-powered chatbot built to assist users with queries related to Made with Ne
 
 ## 🌐 Live Chatbot (Azure)
 
-🟢 **Frontend (React on Azure Static Web Apps)**:  
-👉 Frontend (Chatbot UI): https://nice-sand-0efe8fe0f.6.azurestaticapps.net/
+🟢 **Frontend (Chatbot UI)**:  
+👉 Chatbot Link: https://nice-sand-0efe8fe0f.6.azurestaticapps.net/
 
 ---
 
@@ -81,7 +81,7 @@ An AI-powered chatbot built to assist users with queries related to Made with Ne
                             |
                             v
                 +--------------------------+
-                |     🌐 React Frontend     |
+                |     🌐 React Frontend    |
                 |  (Chatbot Widget in App) |
                 +-----------+--------------+
                             |
@@ -132,6 +132,7 @@ An AI-powered chatbot built to assist users with queries related to Made with Ne
 - npm start
 - Update API_URL in App.js to point to the local backend if testing locally.
 
+---
 
 ## ☁️ Deployment to Azure
 1. Backend (Azure App Service)
@@ -202,7 +203,7 @@ Nestle-AI-Chatbot/
 │
 ├── .github/workflows/               # GitHub Actions for CI/CD
 │
-└── README.md                        #GitHub Actions for CI/CD
+└── README.md                        # GitHub Actions for CI/CD
 
 ```
 
@@ -213,6 +214,7 @@ Nestle-AI-Chatbot/
 - Source links for transparency
 - Context injection from graph database
 - Live typing indicators
+- Context Retention
 
 ---
 
