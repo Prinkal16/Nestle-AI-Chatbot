@@ -10,6 +10,7 @@ An AI-powered chatbot built to assist users with queries related to Made with Ne
 - [🌐 Live Chatbot (Azure)](#-live-chatbot-azure)
 - [✅ Submission Checklist](#-submission-checklist)
 - [🛠 Technologies & Frameworks Used](#-technologies--frameworks-used)
+- [🏗️ System Architecture](#-system-architecture)
 - [🧰 Local Setup](#-local-setup)
 - [☁️ Deployment to Azure](#️-deployment-to-azure)
 - [🕸 Web Scraping via Google Colab (Playwright)](#-web-scraping-via-google-colab-playwright)
