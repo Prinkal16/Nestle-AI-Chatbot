@@ -40,7 +40,7 @@ An AI-powered chatbot built to assist users with queries related to Made with Ne
 ## 🌐 Live Chatbot (Azure)
 
 🟢 **Frontend (Chatbot UI)**:  
-👉 Chatbot Link: https://nice-sand-0efe8fe0f.6.azurestaticapps.net/
+👉 Chatbot Link: {Email me to view the live bot}
 
 ---
 
