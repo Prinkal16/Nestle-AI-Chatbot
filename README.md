@@ -8,7 +8,6 @@ An AI-powered chatbot built to assist users with queries related to Made with Ne
 
 - [🧠 About the Chatbot](#-about-the-chatbot)
 - [🌐 Live Chatbot (Azure)](#-live-chatbot-azure)
-- [✅ Submission Checklist](#-submission-checklist)
 - [🛠 Technologies & Frameworks Used](#-technologies--frameworks-used)
 - [🏗️ System Architecture](#-system-architecture)
 - [🧰 Local Setup](#-local-setup)
@@ -41,19 +40,6 @@ An AI-powered chatbot built to assist users with queries related to Made with Ne
 
 🟢 **Frontend (Chatbot UI)**:  
 👉 Chatbot Link: {Email me to view the live bot}
-
----
-
-## ✅ Submission Checklist
-
-| Requirement                                | Status             |
-|--------------------------------------------|--------------------|
-| Code uploaded to GitHub                    | ✅ Done            |
-| Azure chatbot accessible for testing       | ✅ Live Link provided above |
-| README with setup steps                    | ✅ Included        |
-| Technologies & frameworks documented       | ✅ Included        |
-| Limitations / additional features listed   | ✅ Included        |
-| Functional chatbot with Nestlé content     | ✅ Complete        |
 
 ---
 
