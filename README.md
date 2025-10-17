@@ -39,7 +39,7 @@ An AI-powered chatbot built to assist users with queries related to Made with Ne
 ## 🌐 Live Chatbot (Azure)
 
 🟢 **Frontend (Chatbot UI)**:  
-👉 Chatbot Link: {Email me to view the live bot}
+👉 Chatbot Link: {Kindly email me to view the live bot @ dabreprinkal166@gmail.com}
 
 ---
 
